@@ -6,11 +6,13 @@
 // Function pointer type
 typedef int(__stdcall* ManagedFunctionType)();
 typedef bool(__stdcall* initMDL)();
+typedef bool(__stdcall* verifyMDL)();
 
 int main()
 {
 
     initMDL currentmDl = NULL;
+    verifyMDL verifymDl = NULL;
     HMODULE hModule = LoadLibrary(L"AccessTest.dll");
     if (!hModule)
     {
@@ -24,13 +26,16 @@ int main()
     {
 
         currentmDl = (initMDL)GetProcAddress(hModule, "initialiseMDL");
+        verifymDl = (verifyMDL)GetProcAddress(hModule, "verifyingMDL");
     }
 
     if (currentmDl != NULL)
     {
         currentmDl();
+        printf("\n Init done");
 
-        printf("\n And Here");
+        verifymDl();
+
     }
 
     FreeLibrary(hModule);

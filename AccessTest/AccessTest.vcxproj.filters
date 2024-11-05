@@ -50,7 +50,6 @@
     <None Include="ikvm.properties" />
     <None Include="Microsoft.Extensions.DependencyModel.dll" />
     <None Include="WinRT.Runtime.dll" />
-    <None Include="x64\Debug\org.reactivestreams.dll" />
     <None Include="Microsoft.CSharp.dll" />
     <None Include="Microsoft.Windows.SDK.NET.dll" />
     <None Include="Serilog.dll" />
@@ -62,5 +61,11 @@
     <None Include="System.Text.Encodings.Web.dll" />
     <None Include="System.Text.Json.dll" />
     <None Include="System.Text.Encoding.CodePages.dll" />
+    <None Include="Newtonsoft.Json.dll" />
+    <None Include="PCSC.dll" />
+    <None Include="PCSC.Iso7816.dll" />
+    <None Include="PCSC.Reactive.dll" />
+    <None Include="System.Reactive.dll" />
+    <None Include="System.Management.dll" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -24,7 +24,7 @@
     <ProjectGuid>{9F9727FE-D5FB-4B53-99A4-3FF431156EE2}</ProjectGuid>
     <Keyword>NetCoreCProj</Keyword>
     <RootNamespace>AccessTest</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -163,7 +163,7 @@
       <HintPath>io.reactivex.rxjava2.dll</HintPath>
     </Reference>
     <Reference Include="Logging">
-      <HintPath>..\packages\logging\lib\net8.0\Logging.dll</HintPath>
+      <HintPath>Logging.dll</HintPath>
     </Reference>
     <Reference Include="org.bouncycastle.pkix">
       <HintPath>org.bouncycastle.pkix.dll</HintPath>
@@ -186,6 +186,18 @@
     <None Include="Microsoft.Windows.SDK.NET.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="Newtonsoft.Json.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="PCSC.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="PCSC.Iso7816.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="PCSC.Reactive.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
     <None Include="Serilog.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
@@ -194,6 +206,12 @@
     </None>
     <None Include="Serilog.Sinks.File.dll" />
     <None Include="System.Data.Odbc.dll" />
+    <None Include="System.Management.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="System.Reactive.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
     <None Include="System.Text.Encoding.CodePages.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
@@ -212,7 +230,6 @@
     <None Include="WinRT.Runtime.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
-    <None Include="x64\Debug\org.reactivestreams.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
