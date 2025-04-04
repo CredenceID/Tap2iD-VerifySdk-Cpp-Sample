@@ -455,6 +455,22 @@ sun.security.krb5.disableReferrals=false
 sun.security.krb5.maxReferrals=5
 
 #
+# This property contains a list of disabled EC Named Curves that can be included
+# in the jdk.[tls|certpath|jar].disabledAlgorithms properties.  To include this
+# list in any of the disabledAlgorithms properties, add the property name as
+# an entry.
+jdk.disabled.namedCurves = secp112r1, secp112r2, secp128r1, secp128r2, \
+    secp160k1, secp160r1, secp160r2, secp192k1, secp192r1, secp224k1, \
+    secp224r1, secp256k1, sect113r1, sect113r2, sect131r1, sect131r2, \
+    sect163k1, sect163r1, sect163r2, sect193r1, sect193r2, sect233k1, \
+    sect233r1, sect239k1, sect283k1, sect283r1, sect409k1, sect409r1, \
+    sect571k1, sect571r1, X9.62 c2tnb191v1, X9.62 c2tnb191v2, \
+    X9.62 c2tnb191v3, X9.62 c2tnb239v1, X9.62 c2tnb239v2, X9.62 c2tnb239v3, \
+    X9.62 c2tnb359v1, X9.62 c2tnb431r1, X9.62 prime192v2, X9.62 prime192v3, \
+    X9.62 prime239v1, X9.62 prime239v2, X9.62 prime239v3, brainpoolP256r1, \
+    brainpoolP320r1, brainpoolP384r1, brainpoolP512r1
+
+#
 # Algorithm restrictions for certification path (CertPath) processing
 #
 # In some environments, certain algorithms or key lengths may be undesirable
@@ -468,7 +484,7 @@ sun.security.krb5.maxReferrals=5
 #       " DisabledAlgorithm { , DisabledAlgorithm } "
 #
 #   DisabledAlgorithm:
-#       AlgorithmName [Constraint] { '&' Constraint }
+#       AlgorithmName [Constraint] { '&' Constraint } | IncludeProperty
 #
 #   AlgorithmName:
 #       (see below)
@@ -495,6 +511,9 @@ sun.security.krb5.maxReferrals=5
 #   UsageConstraint:
 #       usage [TLSServer] [TLSClient] [SignedJAR]
 #
+#   IncludeProperty:
+#       include <security property>
+#
 # The "AlgorithmName" is the standard algorithm name of the disabled
 # algorithm. See "Java Cryptography Architecture Standard Algorithm Name
 # Documentation" for information about Standard Algorithm Names.  Matching
@@ -506,6 +525,14 @@ sun.security.krb5.maxReferrals=5
 # the assertion algorithm name "DSA" will disable all certificate algorithms
 # that rely on DSA, such as NONEwithDSA, SHA1withDSA.  However, the assertion
 # will not disable algorithms related to "ECDSA".
+#
+# The "IncludeProperty" allows a implementation-defined security property that
+# can be included in the disabledAlgorithms properties.  These properties are
+# to help manage common actions easier across multiple disabledAlgorithm
+# properties.
+# There is one defined security property:  jdk.disabled.namedCurves
+# See the property for more specific details.
+#
 #
 # A "Constraint" defines restrictions on the keys and/or certificates for
 # a specified AlgorithmName:
@@ -579,7 +606,29 @@ sun.security.krb5.maxReferrals=5
 #
 #
 jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer, \
-    RSA keySize < 1024, DSA keySize < 1024, EC keySize < 224
+    RSA keySize < 1024, DSA keySize < 1024, EC keySize < 224, \
+    SHA1 usage SignedJAR & denyAfter 2019-01-01, \
+    include jdk.disabled.namedCurves
+
+#
+# Legacy algorithms for certification path (CertPath) processing and
+# signed JAR files.
+#
+# In some environments, a certain algorithm or key length may be undesirable
+# but is not yet disabled.
+#
+# Tools such as keytool and jarsigner may emit warnings when these legacy
+# algorithms are used. See the man pages for those tools for more information.
+#
+# The syntax is the same as the "jdk.certpath.disabledAlgorithms" and
+# "jdk.jar.disabledAlgorithms" security properties.
+#
+# Note: This property is currently used by the JDK Reference
+# implementation. It is not guaranteed to be examined and used by other
+# implementations.
+
+jdk.security.legacyAlgorithms=SHA1, \
+    RSA keySize < 2048, DSA keySize < 2048
 
 #
 # Algorithm restrictions for signed JAR files
@@ -622,7 +671,9 @@ jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer, \
 #
 # See "jdk.certpath.disabledAlgorithms" for syntax descriptions.
 #
-jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, DSA keySize < 1024
+jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, \
+      DSA keySize < 1024, SHA1 denyAfter 2019-01-01, \
+      include jdk.disabled.namedCurves
 
 #
 # Algorithm restrictions for Secure Socket Layer/Transport Layer Security
@@ -654,8 +705,9 @@ jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, DSA keySize < 1024
 #
 # Example:
 #   jdk.tls.disabledAlgorithms=MD5, SSLv3, DSA, RSA keySize < 2048
-jdk.tls.disabledAlgorithms=SSLv3, RC4, DES, MD5withRSA, DH keySize < 1024, \
-    EC keySize < 224, 3DES_EDE_CBC, anon, NULL
+jdk.tls.disabledAlgorithms=SSLv3, TLSv1, TLSv1.1, RC4, DES, MD5withRSA, \
+    DH keySize < 1024, EC keySize < 224, 3DES_EDE_CBC, anon, NULL, \
+    include jdk.disabled.namedCurves
 
 # Legacy algorithms for Secure Socket Layer/Transport Layer Security (SSL/TLS)
 # processing in JSSE implementation.
@@ -1046,6 +1098,77 @@ jdk.xml.dsig.secureValidationPolicy=\
 jceks.key.serialFilter = java.lang.Enum;java.security.KeyRep;\
   java.security.KeyRep$Type;javax.crypto.spec.SecretKeySpec;!*
 
+#
+# PKCS12 KeyStore properties
+#
+# The following properties, if configured, are used by the PKCS12 KeyStore
+# implementation during the creation of a new keystore. Several of the
+# properties may also be used when modifying an existing keystore. The
+# properties can be overridden by a KeyStore API that specifies its own
+# algorithms and parameters.
+#
+# If an existing PKCS12 keystore is loaded and then stored, the algorithm and
+# parameter used to generate the existing Mac will be reused. If the existing
+# keystore does not have a Mac, no Mac will be created while storing. If there
+# is at least one certificate in the existing keystore, the algorithm and
+# parameters used to encrypt the last certificate in the existing keystore will
+# be reused to encrypt all certificates while storing. If the last certificate
+# in the existing keystore is not encrypted, all certificates will be stored
+# unencrypted. If there is no certificate in the existing keystore, any newly
+# added certificate will be encrypted (or stored unencrypted if algorithm
+# value is "NONE") using the "keystore.pkcs12.certProtectionAlgorithm" and
+# "keystore.pkcs12.certPbeIterationCount" values defined here. Existing private
+# and secret key(s) are not changed. Newly set private and secret key(s) will
+# be encrypted using the "keystore.pkcs12.keyProtectionAlgorithm" and
+# "keystore.pkcs12.keyPbeIterationCount" values defined here.
+#
+# In order to apply new algorithms and parameters to all entries in an
+# existing keystore, one can create a new keystore and add entries in the
+# existing keystore into the new keystore. This can be achieved by calling the
+# "keytool -importkeystore" command.
+#
+# If a system property of the same name is also specified, it supersedes the
+# security property value defined here.
+#
+# If the property is set to an illegal value,
+# an iteration count that is not a positive integer, or an unknown algorithm
+# name, an exception will be thrown when the property is used.
+# If the property is not set or empty, a default value will be used.
+#
+# Note: These properties are currently used by the JDK Reference implementation.
+# They are not guaranteed to be examined and used by other implementations.
+
+# The algorithm used to encrypt a certificate. This can be any non-Hmac PBE
+# algorithm defined in the Cipher section of the Java Security Standard
+# Algorithm Names Specification. When set to "NONE", the certificate
+# is not encrypted. The default value is "PBEWithSHA1AndRC2_40".
+#keystore.pkcs12.certProtectionAlgorithm = PBEWithSHA1AndRC2_40
+
+# The iteration count used by the PBE algorithm when encrypting a certificate.
+# This value must be a positive integer. The default value is 50000.
+#keystore.pkcs12.certPbeIterationCount = 50000
+
+# The algorithm used to encrypt a private key or secret key. This can be
+# any non-Hmac PBE algorithm defined in the Cipher section of the Java
+# Security Standard Algorithm Names Specification. The value must not be "NONE".
+# The default value is "PBEWithSHA1AndDESede".
+#keystore.pkcs12.keyProtectionAlgorithm = PBEWithSHA1AndDESede
+
+# The iteration count used by the PBE algorithm when encrypting a private key
+# or a secret key. This value must be a positive integer. The default value
+# is 50000.
+#keystore.pkcs12.keyPbeIterationCount = 50000
+
+# The algorithm used to calculate the optional MacData at the end of a PKCS12
+# file. This can be any HmacPBE algorithm defined in the Mac section of the
+# Java Security Standard Algorithm Names Specification. When set to "NONE",
+# no Mac is generated. The default value is "HmacPBESHA1".
+#keystore.pkcs12.macAlgorithm = HmacPBESHA1
+
+# The iteration count used by the MacData algorithm. This value must be a
+# positive integer. The default value is 100000.
+#keystore.pkcs12.macIterationCount = 100000
+
 # The iteration count used for password-based encryption (PBE) in JCEKS
 # keystores. Values in the range 10000 to 5000000 are considered valid.
 # If the value is out of this range, or is not a number, or is unspecified;
@@ -1145,3 +1268,36 @@ jdk.security.caDistrustPolicies=SYMANTEC_TLS
 # System value prevails. The default value of the property is "false".
 #
 #jdk.security.allowNonCaAnchor=true
+
+#
+# The default Character set name (java.nio.charset.Charset.forName())
+# for converting TLS ALPN values between byte arrays and Strings.
+# Prior versions of the JDK may use UTF-8 as the default charset. If
+# you experience interoperability issues, setting this property to UTF-8
+# may help.
+#
+# jdk.tls.alpnCharset=UTF-8
+jdk.tls.alpnCharset=ISO_8859_1
+
+#
+# JNDI Object Factories Filter
+#
+# This filter is used by the JNDI runtime to control the set of object factory classes
+# which will be allowed to instantiate objects from object references returned by
+# naming/directory systems. The factory class named by the reference instance will be
+# matched against this filter. The filter property supports pattern-based filter syntax
+# with the same format as jdk.serialFilter.
+#
+# Each pattern is matched against the factory class name to allow or disallow it's
+# instantiation. The access to a factory class is allowed unless the filter returns
+# REJECTED.
+#
+# Note: This property is currently used by the JDK Reference implementation.
+# It is not guaranteed to be examined and used by other implementations.
+#
+# If the system property jdk.jndi.object.factoriesFilter is also specified, it supersedes
+# the security property value defined here. The default value of the property is "*".
+#
+# The default pattern value allows any object factory class specified by the reference
+# instance to recreate the referenced object.
+#jdk.jndi.object.factoriesFilter=*

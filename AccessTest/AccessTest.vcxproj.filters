@@ -67,5 +67,10 @@
     <None Include="PCSC.Reactive.dll" />
     <None Include="System.Reactive.dll" />
     <None Include="System.Management.dll" />
+    <None Include="BluetoothBumble.dll" />
+    <None Include="BluetoothBumble.py" />
+    <None Include="Tap2iDBluetoothCommon.dll" />
+    <None Include="Python.Runtime.dll" />
+    <None Include="device1.json" />
   </ItemGroup>
 </Project>

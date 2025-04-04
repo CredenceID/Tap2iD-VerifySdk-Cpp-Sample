@@ -62,10 +62,10 @@ public:
     {
 		bool returnValue = false;
 
-		tap2idVerifier = VerifyMdocFactory::CreateVerifyMdoc() ;
+		tap2idVerifier = VerifyMdocFactory::CreateVerifyMdoc(true) ;
 
 		CoreSdkConfig^ currentConfig = gcnew CoreSdkConfig();
-		currentConfig->ApiKey = "CS364Bew5ettUCPrkOLBRaGI76nnh5YBnx";
+		currentConfig->ApiKey = "CSWgToATtHAa4yfCXGrmeGJhx6PfwShBaP";
 		currentConfig->PackageName = "Tap2IdSampleCpp";
 
 		// Create a ManualResetEvent for signaling
@@ -95,7 +95,7 @@ public:
 				verifyDelegate = gcnew DelegateVerifyState();
 				verifyDelegate->OnVerifyState = gcnew OnVerifyState(&currentVeriyfyState);
 				currentMdocConfig = gcnew MdocConfig();
-				currentMdocConfig->DeviceEngagementString = "mdoc:owBjMS4wAYIB2BhYS6QBAiABIVggNvxTuyAwL-S7HL0h8RNgT4NvEz32_yk2cmB5kkctr8kiWCDXqR38c-dD74Lo0sDHkuL2d0IihAsRCLwUxr9yBxgs8AKBgwIBowD0AfULUA_sFipTZkyBhlzg-WY2zhw";
+				currentMdocConfig->DeviceEngagementString = "mdoc:owBjMS4wAYIB2BhYS6QBAiABIVgg9tfjod9RYXhBr6UUZFOE5VeZokjh8WKSPpgeIQ0fjtgiWCDSPOtUwClfNaOF-vbPkLxTQ4bfLVqjSCFrb-zv1TyCyAKBgwIBowD0AfULUNXLFbE_Lk1umcu0o6vZfsA";
 				currentMdocConfig->EngagementMode = DeviceEngagementMode::QrCode;
 				currentMdocConfig->BleWriteOption = BleWriteOption::Write;
 				CIdentity^ identity = gcnew CIdentity();

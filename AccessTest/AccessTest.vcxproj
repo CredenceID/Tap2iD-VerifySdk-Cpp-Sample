@@ -176,6 +176,15 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="BluetoothBumble.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="BluetoothBumble.py">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="device1.json">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
     <None Include="ikvm.properties" />
     <None Include="Microsoft.CSharp.dll">
       <DeploymentContent>true</DeploymentContent>
@@ -196,6 +205,9 @@
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="PCSC.Reactive.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Python.Runtime.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="Serilog.dll">
@@ -225,6 +237,9 @@
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="System.Text.Json.dll">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Tap2iDBluetoothCommon.dll">
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="WinRT.Runtime.dll">

@@ -16,16 +16,20 @@ This solution is composed of two projects:
 The main entry point is the `Tap2iDSdk.dll`. Below is the list of dependencies for this library:
 
 - **BluetoothWinUI.dll**: A Bluetooth DLL that manages interactions between the Verifier and Wallet.
+- **BluetoothBumble.dll, BluetoothBumble.py**: Python script and dll that use bumble stack for bluetooth interaction
 - **Logging.dll, Serilog.dll, Serilog.Sinks.File.dll**: Logging libraries that write logs to a local file in debug versions (C:\Users\<username>\Tap2Id).
 - **C.identity.dll**: The core Credence library that handles mDoc verification.
 - **cbor.dll**: A library for CBOR decoding.
+- **device1.json**: Json config file for Bumble Bluetooth
 - **io.reactivex.rxjava2.dll**: The RxJava library for reactive programming.
 - **org.bouncycastle.pkix.dll, org.bouncycastle.provider.dll**: Bouncy Castle Crypto libraries, a Java implementation of cryptographic algorithms.
 - **Microsoft.Windows.SDK.NET.dll**: Provides the .NET bindings to access WinRT APIs used by WinUI.
 - **Microsoft.CSharp.dll**: Contains the C# runtime binder, essential for dynamic features in C#.
 - **Newtonsoft.Json.dll**: A popular library for handling JSON serialization and deserialization.
 - **PCSC.dll, PCSC.Iso7816.dll, PCSC.Reactive.dll**: Provides an interface for smart card communication and management.
+- **Python.Runtime.dll**: Integrations of Python functionality
 - **System.Management.dll**: Provides access to Windows Management Instrumentation (WMI) resources, allowing applications to query and interact with system information.
+- **Tap2iDBluetoothCommon.dll**: A common library to expose interface and utils for Bluetooth
 - **IKVM.Runtime.dll, IKVM.Java.dll, IKVM.ByteCode.dll**: Part of the IKVM.NET suite, which allows Java to run on .NET.
   - **IKVM Dependencies**:
     - IKVM folder for the appropriate platform (e.g., `win-x64`).
