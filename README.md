@@ -4,7 +4,7 @@
 
 This solution is composed of two projects:
 
-1. **AccessTest**  
+1. **Tap2IDSampleCpp**  
    This project is a library that utilizes the Tap2iD SDK .NET library.
    It shows how to call the library from c++ and verify a mDoc.
    
