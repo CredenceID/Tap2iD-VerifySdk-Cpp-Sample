@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "AccessTest.h"
+#include "Tap2ID.h"
 using namespace System::Threading;
 
 
@@ -10,11 +10,9 @@ using namespace System::Threading::Tasks;
 
 public delegate void   currentVeriyfyDelegate(VerifyState verifiyState);
 
-
 void currentVeriyfyState(VerifyState verifiyState)
 {
 	Console::WriteLine("state {0}", verifiyState);
-	// Do something with verify state
 }
 
 public ref class MyInitSdkResultListener : public Tap2iDSdk::Model::InitSdkResultListener
@@ -65,16 +63,13 @@ public:
 		tap2idVerifier = VerifyMdocFactory::CreateVerifyMdoc(true) ;
 
 		CoreSdkConfig^ currentConfig = gcnew CoreSdkConfig();
-		currentConfig->ApiKey = "CSWgToATtHAa4yfCXGrmeGJhx6PfwShBaP";
+		currentConfig->ApiKey = "CSY3dCFfeBqTtEKj9uc0FtIsZZcYgUFsPr";
 		currentConfig->PackageName = "Tap2IdSampleCpp";
 
 		// Create a ManualResetEvent for signaling
 		ManualResetEvent^ initCompleteEvent = gcnew ManualResetEvent(false);
 
 		MyInitSdkResultListener^ initlistener = gcnew MyInitSdkResultListener(initCompleteEvent);
-
-		//Task <Tap2iDResultError>^ initTask = dynamic_cast<Task <Tap2iDResultError>^>(tap2idVerifier->InitTap2iDAsync(currentConfig));
-		//initTask->Wait();
 
 		tap2idVerifier->InitSdk(currentConfig, initlistener);
 
@@ -96,7 +91,7 @@ public:
 				verifyDelegate->OnVerifyState = gcnew OnVerifyState(&currentVeriyfyState);
 				currentMdocConfig = gcnew MdocConfig();
 				currentMdocConfig->DeviceEngagementString = "mdoc:owBjMS4wAYIB2BhYS6QBAiABIVgg9tfjod9RYXhBr6UUZFOE5VeZokjh8WKSPpgeIQ0fjtgiWCDSPOtUwClfNaOF-vbPkLxTQ4bfLVqjSCFrb-zv1TyCyAKBgwIBowD0AfULUNXLFbE_Lk1umcu0o6vZfsA";
-				currentMdocConfig->EngagementMode = DeviceEngagementMode::QrCode;
+				currentMdocConfig->EngagementMode = DeviceEngagementMode::NFC;
 				currentMdocConfig->BleWriteOption = BleWriteOption::Write;
 				CIdentity^ identity = gcnew CIdentity();
 

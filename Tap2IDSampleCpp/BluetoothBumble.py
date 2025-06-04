@@ -27,7 +27,7 @@ logging.basicConfig(
     filename=log_file_path,
     filemode='w'
 )
-
+logging.getLogger("bumble").setLevel(logging.ERROR)
 # Create a console handler to see log output in real time
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.DEBUG)
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 logger.debug("Current working directory: %s", os.getcwd())
 
 from bumble.core import UUID, AdvertisingData
-from bumble.device import Device, Connection
+from bumble.device import Device, Connection, Peer
 from bumble.gatt import (
     Service,
     Characteristic,
@@ -51,6 +51,11 @@ from bumble.gatt import (
     GATT_DEVICE_INFORMATION_SERVICE,
 )
 from bumble.transport import open_transport_or_link
+from bumble.utils import AsyncRunner
+from bumble.hci import Address
+from bumble.gatt import GATT_CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR
+from bumble.gatt_client import ClientCharacteristicConfigurationBits
+import struct
 
 # Define the constant for state transmission.
 STATE_START_TRANSMISSION = 0x01
@@ -71,6 +76,17 @@ global_hci_transport = None
 # Global variable to accumulate received data.
 global_received_data = bytearray()
 global_state_characteristic = None 
+
+# Will hold the Peer object once connected
+_global_peer: Peer = None
+_global_device = None
+
+# Will hold the two characteristics once we discover them for client
+_global_char_client2server = None
+_global_char_server2client = None
+
+# A hook into which your .NET side can register a callback(data: bytes)
+_message_notify_callback = None
 
 def start_event_loop():
     global global_event_loop
@@ -97,6 +113,9 @@ def start_persistent_event_loop():
             logger.error("Failed to initialize persistent event loop within timeout.")
         else:
             logger.info("Persistent event loop is ready.")
+
+# Kick off our background loop immediately when the module loads
+start_persistent_event_loop()
 
 def disconnect_event_loop():
     global global_event_loop, loop_thread
@@ -320,9 +339,6 @@ async def setup_bluetooth_server(config_file: str, transport: str, service_uuid_
 
     await device.power_on()
 
-    # Optionally add a small delay here to ensure services are fully published.
-    await asyncio.sleep(1)
-
     # Set the advertising data to include the custom service UUID (or any desired data)
     device.advertising_data = bytes(
         AdvertisingData(
@@ -435,6 +451,346 @@ async def send_session_termination(device):
     except Exception as e:
         logger.error("Error sending session termination: %s", e)
 
+# -----------------------------------------------------------------------------
+#  Gatt Client
+# ----------------------------------------------------------------------------
+STATE_UUID          = UUID("00000001-a123-48ce-896b-4c76973373e6")
+CLIENT2SERVER_UUID  = UUID("00000002-a123-48ce-896b-4c76973373e6")
+SERVER2CLIENT_UUID  = UUID("00000003-a123-48ce-896b-4c76973373e6")
+CCCD_UUID = UUID("00002902-0000-1000-8000-00805F9B34FB")
+
+"""
+    Register a Python callable (from .NET) that will be
+    invoked with each notification's raw bytes.
+"""
+def register_server2client_callback(py_callable):   
+    global _message_notify_callback
+    _message_notify_callback = py_callable
+
+
+class ClientListener(Device.Listener):
+    def __init__(self, device, target_service_uuid):
+        self.device = device
+        self.target_service_uuid = target_service_uuid
+        self.service_found_future = global_event_loop.create_future() #asyncio.get_event_loop().create_future()
+        self.connecting = False
+        self.current_connection = None
+        logger.info(f'Target service UUID: {self.target_service_uuid}')  
+
+
+    def on_advertisement(self, advertisement):
+        logger.info(f'Received advertisement from {advertisement.address}')     
+        addr = advertisement.address
+
+        # Already connecting? Ignore.
+        if self.connecting:
+            logger.info(f'already connecting') 
+            return
+
+        # Grab the complete or shortened local name
+        name = (
+            advertisement.data.get(AdvertisingData.COMPLETE_LOCAL_NAME)
+            or advertisement.data.get(AdvertisingData.SHORTENED_LOCAL_NAME)
+        )
+
+        # grab both complete & incomplete 128-bit lists, defaulting to [] if missing
+        complete = advertisement.data.get(
+            AdvertisingData.COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS
+        ) or []
+        incomplete = advertisement.data.get(
+            AdvertisingData.INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS
+        ) or []
+
+        # now safe to concatenate
+        uuids = complete + incomplete
+
+        # Check if we should connect:
+        connect_based_on_name = name and len(name) == 4
+        connect_based_on_uuid = self.target_service_uuid in uuids
+
+        if connect_based_on_name or connect_based_on_uuid:
+            reason = "name" if connect_based_on_name else "UUID"
+            logger.info(f"Match found by {reason} ('{name}' / {self.target_service_uuid}), connecting to {addr}…")
+
+            self.connecting = True
+            # stop scanning and connect
+            asyncio.create_task(self.device.stop_scanning())
+            asyncio.create_task(self.device.connect(addr))
+            #asyncio.create_task(self._stop_and_connect(addr))
+
+    @AsyncRunner.run_in_task()
+    async def on_connection(self, connection):
+        global _global_peer, _global_char_client2server, _global_char_server2client
+        logger.info(f'=== Connected to {connection}')
+        self.current_connection = connection
+        if _connection_init_started_callback:
+            try:
+                _connection_init_started_callback()
+            except Exception as e:
+                logger.error("Error invoking ConnectionInitStarted callback: %s", e)  
+        _global_peer = Peer(connection)
+        # Step 1: Negotiate MTU
+        try:
+            mtu = await _global_peer.request_mtu(515)
+            logger.info(f'Negotiated MTU: {mtu}')
+        except Exception as e:
+            logger.warning(f'Failed to negotiate MTU: {e}')
+
+        # Step 2: Discover services and characteristics
+        await _global_peer.discover_services()
+        logger.info('Services discovered')
+
+        for service in _global_peer.services:
+            logger.info(f'Discovered service UUID: {service.uuid}')
+             # Look only at your target service:
+            if service.uuid != self.target_service_uuid:
+                continue
+
+            logger.info(f"=== Found target service {service.uuid}, discovering characteristics")
+            await service.discover_characteristics()
+
+            # find the three chars
+            for char in service.characteristics:
+                if char.uuid == STATE_UUID:
+                    # your existing state write
+                    await _global_peer.write_value(char, b'\x01')
+                    logger.info("State written (0x01)")
+
+                elif char.uuid == CLIENT2SERVER_UUID:
+                    _global_char_client2server = char
+                    logger.info("Discovered client server characteristic")
+
+                elif char.uuid == SERVER2CLIENT_UUID:
+                    _global_char_server2client = char                    
+                    logger.info("Discovered server client characteristic")
+
+            # subscribe to notifications on server client
+            if _global_char_server2client:  
+                logger.info("Discovered descriptor")
+                # 1) Discover its descriptors so we can find the CCCD
+                await _global_char_server2client.discover_descriptors()
+                for desc in _global_char_server2client.descriptors:
+                    logger.info(f"    Descriptor: handle=0x{desc.handle:04x} uuid={desc.type} ")
+             
+                # define how to handle incoming notifications:
+                def _on_notify(value):                   
+                    global global_received_data
+                    logger.debug("Notification received: %s", value.hex())
+
+                    # Ensure the received frame is not empty
+                    if not value or len(value) < 1:
+                        logger.error("Received an empty frame!")
+                        return
+
+                    # Read the marker from the first byte
+                    marker = value[0]
+
+                    if marker == 0x01:
+                        if len(global_received_data) == 0:
+                            if _message_start_received_callback:
+                                try:
+                                    _message_start_received_callback()
+                                    logger.info("MessageStartReceived callback fired.")
+                                except Exception as e:
+                                    logger.error("Error calling MessageStartReceived callback: %s", e)
+                            else:
+                                logger.warning("No MessageStartReceived callback is registered.")
+                        # Intermediate frame: append data excluding the marker
+                        global_received_data.extend(value[1:])
+                    elif marker == 0x00:
+                        # Final frame: append data excluding the marker
+                        global_received_data.extend(value[1:])
+
+                        # Now call the registered callback with the complete data
+                        if _message_notify_callback:
+                            try:
+                                _message_notify_callback(bytes(global_received_data))
+                            except Exception as e:
+                                logger.error("Error calling message received callback: %s", e)
+                        else:
+                            logger.warning("No message received callback is registered.")
+
+                        # Clear the accumulated data for the next message
+                        global_received_data.clear()
+                    else:
+                        logger.error("Unknown frame marker: 0x%02X", marker)
+                               
+
+                # Check if the characteristic supports notifications or indications
+                #if _global_char_server2client.properties & Characteristic.NOTIFY:
+                logger.info("Characteristic supports NOTIFY")
+                # Ensure CCCD is correctly configured
+                cccd = _global_char_server2client.get_descriptor(CCCD_UUID)
+                if cccd:
+                    try:
+                        # Enable notifications by writing to CCCD
+                        await _global_peer.write_value(cccd, b'\x03\x00', with_response=True)
+                        logger.info("CCCD configured for both notifications and indications")
+
+                        # Manually set up the callback for indications
+                        # This is a simplified example; you may need to adjust based on your specific needs
+                        def handle_indication(value):
+                            _on_notify(value)
+
+                        # Add the callback to the indication subscribers //needed for Virghinia wallet
+                        subscriber_set = _global_peer.gatt_client.indication_subscribers.setdefault(_global_char_server2client.handle, set())
+                        subscriber_set.add(_on_notify)
+
+                        # Add the callback to  notification  subscribers
+                        notification_subscriber_set = _global_peer.gatt_client.notification_subscribers.setdefault(_global_char_server2client.handle, set())
+                        notification_subscriber_set.add(_on_notify)
+                        logger.info("Subscribed to server client characteristic NOTIFY & INDICATE")
+                    except Exception as e:
+                        # some peripherals reject INDICATE; fall back to generic subscribe()
+                        logger.warning(f"CCCD write failed ({e}); falling back to subscribe() helper")
+                        await _global_peer.gatt_client.subscribe(
+                            _global_char_server2client,
+                            subscriber=_on_notify,      
+                            prefer_notify=True         # request NOTIFY only
+                        )
+                        logger.info("Subscribed via subscribe() helper")                                  
+                else:
+                    logger.error("Characteristic does not support NOTIFY or INDICATE")
+
+                logger.info("Subscribed to server client characteristic")                     
+                # 5) Give the controller a moment to process the write
+                await asyncio.sleep(0.5)
+
+            # signal your main future so scan/connect completes
+            self.service_found_future.set_result((connection, service))
+            return
+
+        logger.warning(f'=== Service with UUID {self.target_service_uuid} not found')
+        if not self.service_found_future.done():
+            self.service_found_future.set_result(None)
+
+    def on_disconnection(self, connection, reason):
+        logger.info(f"### Disconnected {connection}, reason={reason}")
+        # clear it
+        if self.current_connection == connection:
+            self.current_connection = None
+  
+    async def _stop_and_connect(self, addr):
+        try:
+            await self.device.stop_scanning()
+            await self.device.connect(addr)
+        except Exception as e:
+            logger.error(f"Failed to connect to {addr}: {e}")
+            self.connecting = False  # Allow retry on failure
+
+# -----------------------------------------------------------------------------
+async def scan_and_connect(config_file: str, transport: str, target_service_uuid: UUID, timeout: int = 10):
+    global global_hci_transport, _global_device
+
+    if global_hci_transport is None:
+        global_hci_transport = await open_transport_or_link(transport)
+
+    device = Device.from_config_file_with_hci(config_file, global_hci_transport.source, global_hci_transport.sink)
+
+    _global_device = device
+
+    if device.is_scanning:
+        await device.stop_scanning()
+
+    listener = ClientListener(device, target_service_uuid)
+
+    # First, if we already have a connection, tear it down
+    if listener.current_connection is not None:
+        await listener.current_connection.disconnect()
+        logger.info("Disconnected previous connection")
+
+    device.listener = listener
+    await device.power_on()
+
+ 
+    # Start scanning for devices
+    logger.info('=== Scanning for devices...')
+    await device.start_scanning(active=True, legacy=True)
+    logger.info('=== Scanning started')
+
+    # Wait for the service to be found or timeout
+    try:
+        result = await asyncio.wait_for(listener.service_found_future, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning('=== Timed out while scanning for devices')
+        return None
+    finally:
+        logger.info('=== Stopping scanning')
+        await device.stop_scanning(legacy=True)
+        logger.info('=== Scan stop')
+
+async def disconnect_device():
+    global _global_device
+    global _global_peer
+
+    if _global_peer:
+        try:
+            logger.info('[INFO] Disconnecting from device...')
+            await _global_device.disconnect(_global_peer.connection)
+            logger.info('[INFO] Disconnected.')
+        except Exception as e:
+            logger.info(f'[ERROR] Failed to disconnect: {e}')
+        finally:
+            _global_peer = None
+    else:
+        logger.error('[INFO] No active peer to disconnect.')
+
+# -----------------------------------------------------------------------------
+def run_scan_and_connect(config_file: str, transport: str, target_service_uuid: str, timeout: int = 10):
+    try:
+        future = asyncio.run_coroutine_threadsafe(
+            scan_and_connect(config_file, transport, UUID(target_service_uuid), timeout),
+            global_event_loop
+        )
+        connection = future.result(timeout=timeout + 2)  # Add timeout buffer
+
+        if connection is None:
+            raise RuntimeError("Scan/connect returned None")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"[Python] Error during scan/connect: {e}")
+        raise  # This will be caught in C# if needed
+
+def run_disconnect(timeout: int = 5):
+    try:
+        future = asyncio.run_coroutine_threadsafe(
+            disconnect_device(),
+            global_event_loop
+        )
+        result = future.result(timeout=timeout)
+        return True
+    except Exception as e:
+        logger.error(f"[Python] Error during disconnect: {e}")
+        raise
+
+def run_send_data_to_server(data: bytes):
+    if _global_char_client2server is None:
+        raise RuntimeError("client2server characteristic not available")
+
+    if _global_peer is None or _global_char_client2server is None:
+        raise RuntimeError("Not connected or write characteristic not ready")
+
+    # Ensure that data is a Python bytes object.
+    if not isinstance(data, bytes):
+        try:
+            data = bytes(list(data))
+        except Exception as e:
+            logger.error("Could not convert data to Python bytes: %s", e)
+            return
+        
+    logger.info(f"Sending {data.hex()} via Peer.write_value(...)")
+    future = asyncio.run_coroutine_threadsafe(
+        _global_peer.write_value(_global_char_client2server, data, with_response=False),
+        global_event_loop
+    )
+    # this will block until the write is sent (no response expected)
+    future.result(timeout=5.0)
+    logger.info("send_data_to_server: write_value completed")
+    return True
+
 # ------------------------------------------------------------------------------
 # Synchronous wrapper for setup.
 # ------------------------------------------------------------------------------
@@ -471,10 +827,33 @@ def main():
     parser = argparse.ArgumentParser(description="Run a GATT server with a custom service and advertise it.")
     parser.add_argument("config_file", help="Path to the device config file (JSON)")
     parser.add_argument("transport", help="Transport (e.g., usb:0, serial:/dev/ttyUSB0, tcp-client:127.0.0.1:1234)")
-    parser.add_argument("--service_uuid", required=True, help="Custom service UUID to advertise")
+    parser.add_argument("service_uuid", help="Custom service UUID to advertise")
     args = parser.parse_args()
 
-    asyncio.run(setup_bluetooth_server(args.config_file, args.transport, args.service_uuid))
+    svc_uuid = UUID(args.service_uuid)
+    logger.info(f"Starting scan/connect for service {svc_uuid}")
+
+    # 1) Scan & connect (blocking call)
+    result = run_scan_and_connect(args.config_file, args.transport, args.service_uuid)
+    if result is None:
+        logger.error("Failed to find or connect to target service")
+        return
+    conn, service = result
+    logger.info(f"Connected & discovered service {service.uuid}")
+
+    # 2) Send a 5-byte test payload
+    payload = bytes.fromhex("0001010101")
+    logger.info(f"Sending test payload: {payload.hex()}")
+    try:
+        ok = run_send_data_to_server(payload)
+        logger.info(f"Payload send returned: {ok}")
+    except Exception as e:
+        logger.exception("Exception during send_data_to_server")
+    
+    #target_service_uuid = UUID("18CED8CB-943A-46E4-84EB-2AEBB00675A7")
+    #asyncio.run(scan_and_connect(args.config_file, args.transport, target_service_uuid))
+   
+    #asyncio.run(setup_bluetooth_server(args.config_file, args.transport, args.service_uuid))
 
 if __name__ == "__main__":
     main()

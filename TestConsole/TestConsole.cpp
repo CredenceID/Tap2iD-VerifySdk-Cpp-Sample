@@ -13,7 +13,7 @@ int main()
 
     initMDL currentmDl = NULL;
     verifyMDL verifymDl = NULL;
-    HMODULE hModule = LoadLibrary(L"AccessTest.dll");
+    HMODULE hModule = LoadLibrary(L"Tap2IDSampleCpp.dll");
     if (!hModule)
     {
         std::cerr << "Failed to load the DLL" << std::endl;
