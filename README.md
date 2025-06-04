@@ -9,7 +9,7 @@ This solution is composed of two projects:
    It shows how to call the library from c++ and verify a mDoc.
    
 3. **TestConsole**  
-   This project is a test console application that calls the `AccessTest` library.
+   This project is a test console application that calls the `Tap2IDSampleCpp` library.
 
 ## Tap2iDSDK Library and Dependencies
 
